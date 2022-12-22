@@ -133,7 +133,7 @@ func (c *Account) findECRImages() error {
 	log.WithFields(log.Fields{
 		"len":     len(c.ecrImages),
 		"profile": c.profile,
-	}).Debug("found ECR images for profile")
+	}).Info("found ECR images for profile")
 
 	return nil
 }
@@ -159,7 +159,7 @@ func (c *Account) amis() error {
 	log.WithFields(log.Fields{
 		"len":     len(c.images),
 		"profile": c.profile,
-	}).Debug("found amis")
+	}).Info("found amis")
 
 	return nil
 }
