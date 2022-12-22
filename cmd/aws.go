@@ -25,7 +25,12 @@ var awsCmd = &cobra.Command{
 			"profiles": profiles,
 		}).Trace("scanning AWS")
 
-		_ = aws.New(context.TODO(), profiles)
+		cache, err := cmd.Flags().GetBool("cache")
+		if err != nil {
+			panic(err)
+		}
+
+		_ = aws.New(context.TODO(), profiles, cache)
 	},
 }
 

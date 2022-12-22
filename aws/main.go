@@ -2,7 +2,7 @@ package aws
 
 import (
 	"context"
-	"os"
+	"encoding/json"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrTypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/mhristof/bump/cache"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -164,11 +165,8 @@ func (c *Account) amis() error {
 	return nil
 }
 
-func New(ctx context.Context, profiles []string) Client {
-	if len(profiles) == 0 {
-		profiles = []string{os.Getenv("AWS_PROFILE")}
-	}
-
+// New Create new aws client and query data for all given profiles
+func New(ctx context.Context, profiles []string, enableCache bool) Client {
 	accounts := Client{}
 
 	for _, profile := range profiles {
@@ -177,6 +175,14 @@ func New(ctx context.Context, profiles []string) Client {
 			ecr:     ecrClient(ctx, profile),
 			ctx:     ctx,
 			profile: profile,
+		}
+	}
+
+	if enableCache {
+		cached := cache.Load()
+		err := json.Unmarshal(cached, &accounts)
+		if err == nil {
+			return accounts
 		}
 	}
 
@@ -220,5 +226,6 @@ func New(ctx context.Context, profiles []string) Client {
 
 	wg.Wait()
 
+	cache.Write(accounts)
 	return accounts
 }

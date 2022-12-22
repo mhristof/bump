@@ -67,6 +67,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
 	rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
 	rootCmd.PersistentFlags().StringSliceP("profiles", "p", []string{os.Getenv("AWS_PROFILE")}, "AWS profiles to scan. Specify all for all available profiles")
+	rootCmd.PersistentFlags().BoolP("cache", "c", true, "Enable cache")
 }
 
 // Execute The main function for the root command.
