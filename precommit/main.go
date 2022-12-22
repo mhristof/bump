@@ -1,7 +1,6 @@
 package precommit
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,9 +16,20 @@ func Update(path string, dryrun bool) ([]tool.Change, error) {
 		return []tool.Change{}, errors.Wrap(err, "cannot update pre-commit")
 	}
 
+	changes := stdoutToChanges(stdout)
+
+	log.WithFields(log.Fields{
+		"stdout":  stdout,
+		"changes": changes,
+	}).Debug("precommit")
+
+	return changes, nil
+}
+
+func stdoutToChanges(stdout string) []tool.Change {
 	var changes []tool.Change
+
 	for _, line := range strings.Split(stdout, "\n") {
-		fmt.Println(fmt.Sprintf("line: %+v %T", line, line))
 		// Updating https://github.com/pre-commit/pre-commit-hooks ... updating v4.3.0 -> v4.4.0. string
 
 		if line == "" || strings.Contains(line, "already up to date") {
@@ -36,20 +46,7 @@ func Update(path string, dryrun bool) ([]tool.Change, error) {
 			Version:    strings.Trim(fields[6], "."),
 			OldVersion: fields[4],
 		})
-
-		// dont forget to import "encoding/json"
-		changesJSON, err := json.MarshalIndent(changes, "", "    ")
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(string(changesJSON))
-
 	}
 
-	log.WithFields(log.Fields{
-		"stdout":  stdout,
-		"changes": changes,
-	}).Debug("precommit")
-
-	return changes, nil
+	return changes
 }

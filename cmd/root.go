@@ -66,6 +66,7 @@ func init() {
 	rootCmd.PersistentFlags().CountP("verbose", "v", "Increase verbosity")
 	rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
 	rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
+	rootCmd.PersistentFlags().StringSliceP("profiles", "p", []string{os.Getenv("AWS_PROFILE")}, "AWS profiles to scan. Specify all for all available profiles")
 }
 
 // Execute The main function for the root command.
