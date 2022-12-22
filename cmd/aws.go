@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/mhristof/bump/aws"
 	log "github.com/sirupsen/logrus"
@@ -30,7 +31,8 @@ var awsCmd = &cobra.Command{
 			panic(err)
 		}
 
-		_ = aws.New(context.TODO(), profiles, cache)
+		cloud := aws.New(context.TODO(), profiles, cache)
+		fmt.Print(cloud.Update(args[0]), "\n")
 	},
 }
 

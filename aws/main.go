@@ -3,6 +3,9 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -13,13 +16,14 @@ import (
 	"github.com/mhristof/bump/cache"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/mod/semver"
 )
 
 type Account struct {
-	images         []types.Image
+	Images         []types.Image
 	ECRRepos       []ecrTypes.Repository
 	ecrReposMutex  sync.Mutex
-	ecrImages      []ecrTypes.ImageDetail
+	ECRImages      []ecrTypes.ImageDetail
 	ecrImagesMutex sync.Mutex
 	ec2            *ec2.Client
 	ecr            *ecr.Client
@@ -123,7 +127,7 @@ func (c *Account) findECRImages() error {
 				}).Trace("found ECR images from repo")
 
 				c.ecrImagesMutex.Lock()
-				c.ecrImages = append(c.ecrImages, results.ImageDetails...)
+				c.ECRImages = append(c.ECRImages, results.ImageDetails...)
 				c.ecrImagesMutex.Unlock()
 			}
 		}(repo.RepositoryName)
@@ -132,7 +136,7 @@ func (c *Account) findECRImages() error {
 	wg.Wait()
 
 	log.WithFields(log.Fields{
-		"len":     len(c.ecrImages),
+		"len":     len(c.ECRImages),
 		"profile": c.profile,
 	}).Info("found ECR images for profile")
 
@@ -154,11 +158,11 @@ func (c *Account) amis() error {
 			return errors.Wrapf(err, "cannot retrieve page: %f", page)
 		}
 
-		c.images = append(c.images, results.Images...)
+		c.Images = append(c.Images, results.Images...)
 	}
 
 	log.WithFields(log.Fields{
-		"len":     len(c.images),
+		"len":     len(c.Images),
 		"profile": c.profile,
 	}).Info("found amis")
 
@@ -190,7 +194,7 @@ func New(ctx context.Context, profiles []string, enableCache bool) Client {
 	for profile, c := range accounts {
 		data := map[string]func() error{
 			"amis":      c.amis,
-			"ecrImages": c.findECRImages,
+			"ECRImages": c.findECRImages,
 		}
 
 		wg.Add(len(data))
@@ -228,4 +232,50 @@ func New(ctx context.Context, profiles []string, enableCache bool) Client {
 
 	cache.Write(accounts)
 	return accounts
+}
+
+func (c *Client) Update(name string) string {
+	fields := strings.Split(name, ":")
+	repo := fields[0]
+
+	var version string
+	if len(fields) > 1 {
+		version = fields[1]
+	}
+
+	var matches []ecrTypes.ImageDetail
+
+	for account, data := range *c {
+		for _, ecrImage := range data.ECRImages {
+			if *ecrImage.RepositoryName == repo {
+				log.WithFields(log.Fields{
+					"ecrImage": ecrImage,
+					"account":  account,
+					"version":  version,
+					"repo":     repo,
+				}).Trace("found ecr image to update")
+
+				matches = append(matches, ecrImage)
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s:%s", repo, nextECRVersion(matches, version))
+}
+
+func nextECRVersion(images []ecrTypes.ImageDetail, current string) string {
+	var tags []string
+	for _, image := range images {
+		tags = append(tags, image.ImageTags...)
+	}
+
+	sort.Slice(tags, func(i, j int) bool {
+		return semver.Compare(tags[i], tags[j]) < 0
+	})
+
+	log.WithFields(log.Fields{
+		"tags": tags,
+	}).Trace("sorted tags from images")
+
+	return tags[len(tags)-1]
 }
