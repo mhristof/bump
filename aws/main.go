@@ -93,5 +93,5 @@ func New(ctx context.Context, profiles []string, enableCache bool) Client {
 }
 
 func (c *Client) Update(name string) string {
-	return c.updateECR(name)
+	return c.updateAMI(name)
 }
