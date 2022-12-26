@@ -1,9 +1,9 @@
 package aws
 
 import (
-	"encoding/json"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -52,30 +52,42 @@ func trimImageName(s string) string {
 	return s
 }
 
-func (c *Client) updateAMI(name string) string {
-	var images []string
+func (c *Client) findAMI(name string) (*types.Image, []types.Image) {
+	var exact *types.Image
+	var partial []types.Image
 
-	var thisImage *types.Image
-
-	for account, resources := range *c {
+	for _, resources := range *c {
 		for _, image := range resources.Images {
 			if *image.Name == name {
-				thisImage = &image
+				exact = &image
 
-				thisImageJSON, err := json.MarshalIndent(thisImage, "", "")
-				if err != nil {
-					panic(err)
-				}
+				continue
+			}
 
-				log.WithFields(log.Fields{
-					"account": account,
-					"image":   string(thisImageJSON),
-					"name":    name,
-				}).Debug("found image with name")
-				break
+			// log.WithFields(log.Fields{
+			// 	"*image.Name":                *image.Name,
+			// 	"trimImageName(*image.Name)": trimImageName(*image.Name),
+			// 	"trimImageName(name)":        trimImageName(name),
+			// }).Trace("comparing for partial match")
+
+			if strings.HasPrefix(trimImageName(name), trimImageName(*image.Name)) {
+				partial = append(partial, image)
 			}
 		}
 	}
+
+	return exact, partial
+}
+
+func (c *Client) updateAMI(name string) string {
+	images := map[string]types.Image{}
+	partialMatchedVersions := map[string]types.Image{}
+
+	thisImage, partialImages := c.findAMI(name)
+	log.WithFields(log.Fields{
+		"thisImage":    thisImage,
+		"len(partial)": len(partialImages),
+	}).Debug("found Image")
 
 	cleanName := trimImageName(name)
 
@@ -89,11 +101,63 @@ func (c *Client) updateAMI(name string) string {
 					"account":    account,
 				}).Debug("found matching candidate")
 
-				images = append(images, *image.Name)
+				images[*image.Name] = image
+
+				continue
+			}
+
+			for _, pImage := range partialImages {
+				partialMatchedVersions[*pImage.Name] = pImage
 			}
 		}
 	}
-	return nextAMIVersion(images, cleanName)
+
+	log.WithFields(log.Fields{
+		"images":                      len(images),
+		"len(partialMatchedVersions)": len(partialMatchedVersions),
+	}).Debug("found image candidates")
+
+	nextVersion := ""
+
+	if thisImage != nil {
+		nextVersion := nextAMIVersion(images, *thisImage)
+		log.WithFields(log.Fields{
+			"nextVersion": nextVersion,
+		}).Debug("from exact match")
+	}
+
+	return nextVersion
+}
+
+func amiVersion(image types.Image, key string) (string, string) {
+	for _, tag := range image.Tags {
+		if key != "" && *tag.Key == key {
+			return key, *tag.Value
+		}
+
+		switch *tag.Key {
+		case "CI_COMMIT_REF_NAME":
+			fallthrough
+		case "Version":
+			fallthrough
+		case "Release":
+			return *tag.Key, *tag.Value
+		}
+	}
+
+	return "CreationDate", *image.CreationDate
+}
+
+func mapKeys[C any](in map[string]C) []string {
+	ret := make([]string, len(in))
+
+	i := 0
+	for k := range in {
+		ret[i] = k
+		i++
+	}
+
+	return ret
 }
 
 func amiCompare(this *types.Image, that *types.Image, trimmedName string) bool {
@@ -130,18 +194,37 @@ func amiCompare(this *types.Image, that *types.Image, trimmedName string) bool {
 	return false
 }
 
-func nextAMIVersion(images []string, current string) string {
+func nextAMIVersion(images map[string]types.Image, current types.Image) string {
 	if len(images) == 0 {
-		return current
+		return *current.Name
 	}
 
-	sort.Slice(images, func(i, j int) bool {
-		return semver.Compare(images[i], images[j]) > 0
-	})
+	versionKey, versionValue := amiVersion(current, "")
+	isSemver := semver.IsValid(versionValue)
 
 	log.WithFields(log.Fields{
-		"images": images,
-	}).Trace("sorted images")
+		"key":      versionKey,
+		"value":    versionValue,
+		"isSemver": isSemver,
+	}).Debug("found version from this ami")
 
-	return images[0]
+	versions := make(map[string]string, len(images))
+	for k, v := range images {
+		_, version := amiVersion(v, versionKey)
+		if isSemver && !semver.IsValid(version) {
+			continue
+		}
+		versions[k] = version
+	}
+
+	versionKeys := mapKeys(versions)
+	sort.SliceStable(versionKeys, func(i, j int) bool {
+		if isSemver {
+			return semver.Compare(versions[versionKeys[i]], versions[versionKeys[j]]) > 0
+		}
+
+		return versions[versionKeys[i]] > versions[versionKeys[j]]
+	})
+
+	return versionKeys[0]
 }
