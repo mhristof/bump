@@ -108,3 +108,82 @@ func TestAmiCompare(t *testing.T) {
 		assert.Equal(t, test.ret, amiCompare(test.this, test.that, test.ami), test.name)
 	}
 }
+
+func TestNextAMIVersion(t *testing.T) {
+	cases := []struct {
+		name    string
+		images  map[string]types.Image
+		current types.Image
+		ret     string
+	}{
+		{
+			name: "image with semver through labels",
+			images: map[string]types.Image{
+				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
+				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v2.0.0")}}},
+			},
+			current: types.Image{
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("Version"),
+						Value: aws.String("v1.0.0"),
+					},
+				},
+			},
+			ret: "v2",
+		},
+		{
+			name: "image without semver",
+			images: map[string]types.Image{
+				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("1999-01-01")}}},
+				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("2000-01-01")}}},
+			},
+			current: types.Image{
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("Version"),
+						Value: aws.String("1990-01-01"),
+					},
+				},
+			},
+			ret: "v2",
+		},
+		{
+			name:   "empty images",
+			images: map[string]types.Image{},
+			current: types.Image{
+				Name: aws.String("current"),
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("Version"),
+						Value: aws.String("1990-01-01"),
+					},
+				},
+			},
+			ret: "current",
+		},
+		{
+			name: "images with invalid semver",
+			images: map[string]types.Image{
+				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
+				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v3.0.0")}}},
+				"v3": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("2020-01-01")}}},
+			},
+			current: types.Image{
+				Name: aws.String("current"),
+				Tags: []types.Tag{
+					{
+						Key:   aws.String("Version"),
+						Value: aws.String("v1.0.0"),
+					},
+				},
+			},
+			ret: "v2",
+		},
+	}
+
+	// log.SetLevel(log.TraceLevel)
+	for _, test := range cases {
+		assert.Equal(t, test.ret, nextAMIVersion(test.images, test.current), test.name)
+	}
+}
