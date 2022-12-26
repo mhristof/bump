@@ -180,6 +180,18 @@ func TestNextAMIVersion(t *testing.T) {
 			},
 			ret: "v2",
 		},
+		{
+			name: "missing version in tags",
+			images: map[string]types.Image{
+				"v1": {CreationDate: aws.String("1900-01-01")},
+				"v2": {CreationDate: aws.String("2000-01-01")},
+			},
+			current: types.Image{
+				Name:         aws.String("current"),
+				CreationDate: aws.String("1900-01-01"),
+			},
+			ret: "v2",
+		},
 	}
 
 	// log.SetLevel(log.TraceLevel)

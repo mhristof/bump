@@ -136,6 +136,8 @@ func amiVersion(image types.Image, key string) (string, string) {
 		}
 
 		switch *tag.Key {
+		case "CreationDate":
+			return key, *image.CreationDate
 		case "CI_COMMIT_REF_NAME":
 			fallthrough
 		case "Version":
