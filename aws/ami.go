@@ -40,8 +40,11 @@ func (c *Account) amis() error {
 
 func trimImageName(s string) string {
 	trims := []*regexp.Regexp{
-		regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[A-Z]*`),
-		regexp.MustCompile(`v\d*\.\d*.\d*`),
+		regexp.MustCompile(`-\d{10}$`),              // epoch time
+		regexp.MustCompile(`-\d{4}-\d{2}-\d{2}$`),   // 2022-01-01
+		regexp.MustCompile(`-\d{4}\.\d{2}\.\d{2}$`), // 2022.01.01
+		regexp.MustCompile(`-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[A-Z]*`),
+		regexp.MustCompile(`-v\d*\.\d*.\d*`), // semver
 		regexp.MustCompile(`--$`),
 	}
 
@@ -52,23 +55,17 @@ func trimImageName(s string) string {
 	return s
 }
 
-func (c *Client) findAMI(name string) (*types.Image, []types.Image) {
-	var exact *types.Image
+func (c *Client) findAMI(name string) (types.Image, []types.Image) {
+	var exact types.Image
 	var partial []types.Image
 
 	for _, resources := range *c {
 		for _, image := range resources.Images {
 			if *image.Name == name {
-				exact = &image
+				exact = image
 
 				continue
 			}
-
-			// log.WithFields(log.Fields{
-			// 	"*image.Name":                *image.Name,
-			// 	"trimImageName(*image.Name)": trimImageName(*image.Name),
-			// 	"trimImageName(name)":        trimImageName(name),
-			// }).Trace("comparing for partial match")
 
 			if strings.HasPrefix(trimImageName(name), trimImageName(*image.Name)) {
 				partial = append(partial, image)
@@ -84,21 +81,23 @@ func (c *Client) updateAMI(name string) string {
 	partialMatchedVersions := map[string]types.Image{}
 
 	thisImage, partialImages := c.findAMI(name)
-	log.WithFields(log.Fields{
-		"thisImage":    thisImage,
-		"len(partial)": len(partialImages),
-	}).Debug("found Image")
-
 	cleanName := trimImageName(name)
+
+	log.WithFields(log.Fields{
+		"name":         *thisImage.Name,
+		"len(partial)": len(partialImages),
+		"cleanName":    cleanName,
+	}).Debug("found Image")
 
 	for account, resources := range *c {
 		for _, image := range resources.Images {
 			if amiCompare(thisImage, &image, cleanName) {
 				log.WithFields(log.Fields{
-					"image.Name": *image.Name,
-					"cleanName":  cleanName,
-					"name":       name,
-					"account":    account,
+					"image.Name":     *image.Name,
+					"cleanName":      cleanName,
+					"name":           name,
+					"account":        account,
+					"thisImage.Name": *thisImage.Name,
 				}).Debug("found matching candidate")
 
 				images[*image.Name] = image
@@ -119,11 +118,18 @@ func (c *Client) updateAMI(name string) string {
 
 	nextVersion := ""
 
-	if thisImage != nil {
-		nextVersion := nextAMIVersion(images, *thisImage)
+	if thisImage.Name != nil {
+		nextVersion = nextAMIVersion(images, thisImage)
 		log.WithFields(log.Fields{
 			"nextVersion": nextVersion,
 		}).Debug("from exact match")
+	}
+
+	if nextVersion == "" {
+		nextVersion := nextAMIVersion(partialMatchedVersions, partialMatchedVersions[mapKeys(partialMatchedVersions)[0]])
+		log.WithFields(log.Fields{
+			"nextVersion": nextVersion,
+		}).Debug("from partial match")
 	}
 
 	return nextVersion
@@ -162,8 +168,8 @@ func mapKeys[C any](in map[string]C) []string {
 	return ret
 }
 
-func amiCompare(this *types.Image, that *types.Image, trimmedName string) bool {
-	if this != nil && len(this.Tags) > 0 {
+func amiCompare(this types.Image, that *types.Image, trimmedName string) bool {
+	if this.Name != nil && len(this.Tags) > 0 {
 		matched := 0
 
 		for _, tag := range this.Tags {
@@ -175,13 +181,6 @@ func amiCompare(this *types.Image, that *types.Image, trimmedName string) bool {
 		}
 
 		matchedPercent := (100 * matched) / len(this.Tags)
-
-		log.WithFields(log.Fields{
-			"this.Name": *this.Name,
-			"that.Name": *that.Name,
-			"matched":   matched,
-			"matched-%": matchedPercent,
-		}).Trace("comparing tags")
 
 		if matchedPercent < 80 {
 			return false
@@ -205,6 +204,7 @@ func nextAMIVersion(images map[string]types.Image, current types.Image) string {
 	isSemver := semver.IsValid(versionValue)
 
 	log.WithFields(log.Fields{
+		"name":     *current.Name,
 		"key":      versionKey,
 		"value":    versionValue,
 		"isSemver": isSemver,

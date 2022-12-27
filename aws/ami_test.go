@@ -5,20 +5,21 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAmiCompare(t *testing.T) {
 	cases := []struct {
-		name string
-		this *types.Image
-		that *types.Image
-		ami  string
-		ret  bool
+		name       string
+		this       types.Image
+		that       *types.Image
+		trimmedAMI string
+		ret        bool
 	}{
 		{
 			name: "tags mismatched",
-			this: &types.Image{
+			this: types.Image{
 				Name: aws.String("this"),
 				Tags: []types.Tag{
 					{
@@ -39,9 +40,9 @@ func TestAmiCompare(t *testing.T) {
 			ret: false,
 		},
 		{
-			name: "name and tags matched",
-			ami:  "this",
-			this: &types.Image{
+			name:       "name and tags matched",
+			trimmedAMI: "this",
+			this: types.Image{
 				Name: aws.String("this"),
 				Tags: []types.Tag{
 					{Key: aws.String("tag1"), Value: aws.String("bar")},
@@ -60,9 +61,9 @@ func TestAmiCompare(t *testing.T) {
 			ret: true,
 		},
 		{
-			name: "tags matched but different name",
-			ami:  "this",
-			this: &types.Image{
+			name:       "tags matched but different name",
+			trimmedAMI: "this",
+			this: types.Image{
 				Name: aws.String("this"),
 				Tags: []types.Tag{
 					{Key: aws.String("tag1"), Value: aws.String("bar")},
@@ -81,9 +82,9 @@ func TestAmiCompare(t *testing.T) {
 			ret: false,
 		},
 		{
-			name: "name matched with timestamp",
-			ami:  "this-",
-			this: &types.Image{
+			name:       "name matched with timestamp",
+			trimmedAMI: "this",
+			this: types.Image{
 				Name: aws.String("this-2022-08-12T13-02-20Z"),
 			},
 			that: &types.Image{
@@ -92,9 +93,9 @@ func TestAmiCompare(t *testing.T) {
 			ret: true,
 		},
 		{
-			name: "name matched with version-timestamp",
-			ami:  "this",
-			this: &types.Image{
+			name:       "name matched with version-timestamp",
+			trimmedAMI: "this",
+			this: types.Image{
 				Name: aws.String("this-v2.41.0-2022-11-07T13-19-36Z"),
 			},
 			that: &types.Image{
@@ -104,8 +105,9 @@ func TestAmiCompare(t *testing.T) {
 		},
 	}
 
+	log.SetLevel(log.TraceLevel)
 	for _, test := range cases {
-		assert.Equal(t, test.ret, amiCompare(test.this, test.that, test.ami), test.name)
+		assert.Equal(t, test.ret, amiCompare(test.this, test.that, test.trimmedAMI), test.name)
 	}
 }
 
@@ -123,6 +125,7 @@ func TestNextAMIVersion(t *testing.T) {
 				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v2.0.0")}}},
 			},
 			current: types.Image{
+				Name: aws.String("current"),
 				Tags: []types.Tag{
 					{
 						Key:   aws.String("Version"),
@@ -139,6 +142,7 @@ func TestNextAMIVersion(t *testing.T) {
 				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("2000-01-01")}}},
 			},
 			current: types.Image{
+				Name: aws.String("current"),
 				Tags: []types.Tag{
 					{
 						Key:   aws.String("Version"),
@@ -165,8 +169,8 @@ func TestNextAMIVersion(t *testing.T) {
 		{
 			name: "images with invalid semver",
 			images: map[string]types.Image{
-				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
-				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v3.0.0")}}},
+				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v3.0.0")}}},
+				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v4.0.0")}}},
 				"v3": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("2020-01-01")}}},
 			},
 			current: types.Image{
@@ -174,7 +178,7 @@ func TestNextAMIVersion(t *testing.T) {
 				Tags: []types.Tag{
 					{
 						Key:   aws.String("Version"),
-						Value: aws.String("v1.0.0"),
+						Value: aws.String("v3.0.0"),
 					},
 				},
 			},
