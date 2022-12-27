@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.17.25
+	github.com/mhristof/go-git v0.1.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0

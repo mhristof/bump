@@ -115,10 +115,12 @@ func TestNextAMIVersion(t *testing.T) {
 		name    string
 		images  map[string]types.Image
 		current types.Image
+		client  *Client
 		ret     string
 	}{
 		{
-			name: "image with semver through labels",
+			name:   "image with semver through labels",
+			client: &Client{AMITags: []string{"Version"}},
 			images: map[string]types.Image{
 				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
 				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v2.0.0")}}},
@@ -135,7 +137,8 @@ func TestNextAMIVersion(t *testing.T) {
 			ret: "v2",
 		},
 		{
-			name: "image without semver",
+			name:   "image without semver",
+			client: &Client{AMITags: []string{"Version"}},
 			images: map[string]types.Image{
 				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("1999-01-01")}}},
 				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("2000-01-01")}}},
@@ -153,6 +156,7 @@ func TestNextAMIVersion(t *testing.T) {
 		},
 		{
 			name:   "empty images",
+			client: &Client{AMITags: []string{"Version"}},
 			images: map[string]types.Image{},
 			current: types.Image{
 				Name: aws.String("current"),
@@ -166,7 +170,8 @@ func TestNextAMIVersion(t *testing.T) {
 			ret: "current",
 		},
 		{
-			name: "images with invalid semver",
+			name:   "images with invalid semver",
+			client: &Client{AMITags: []string{"Version"}},
 			images: map[string]types.Image{
 				"v1": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v3.0.0")}}},
 				"v2": {Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v4.0.0")}}},
@@ -184,7 +189,8 @@ func TestNextAMIVersion(t *testing.T) {
 			ret: "v2",
 		},
 		{
-			name: "missing version in tags",
+			name:   "missing version in tags",
+			client: &Client{AMITags: []string{""}},
 			images: map[string]types.Image{
 				"v1": {CreationDate: aws.String("1900-01-01")},
 				"v2": {CreationDate: aws.String("2000-01-01")},
@@ -199,7 +205,7 @@ func TestNextAMIVersion(t *testing.T) {
 
 	// log.SetLevel(log.TraceLevel)
 	for _, test := range cases {
-		assert.Equal(t, test.ret, nextAMIVersion(test.images, test.current), test.name)
+		assert.Equal(t, test.ret, nextAMIVersion(test.client, test.images, test.current), test.name)
 	}
 }
 
@@ -215,10 +221,12 @@ func TestFindAMI(t *testing.T) {
 			name: "found exact match without partials",
 			ami:  "image1",
 			c: &Client{
-				"account": &Account{
-					Images: []types.Image{
-						{
-							Name: aws.String("image1"),
+				accounts: map[string]*Account{
+					"account": {
+						Images: []types.Image{
+							{
+								Name: aws.String("image1"),
+							},
 						},
 					},
 				},
@@ -231,10 +239,12 @@ func TestFindAMI(t *testing.T) {
 			name: "found exact match with partials",
 			ami:  "image1",
 			c: &Client{
-				"account": &Account{
-					Images: []types.Image{
-						{Name: aws.String("image1")},
-						{Name: aws.String("image1-v1.0.0")},
+				accounts: map[string]*Account{
+					"account": {
+						Images: []types.Image{
+							{Name: aws.String("image1")},
+							{Name: aws.String("image1-v1.0.0")},
+						},
 					},
 				},
 			},
@@ -249,9 +259,11 @@ func TestFindAMI(t *testing.T) {
 			name: "nothing found",
 			ami:  "image1",
 			c: &Client{
-				"account": &Account{
-					Images: []types.Image{
-						{Name: aws.String("image2")},
+				accounts: map[string]*Account{
+					"account": {
+						Images: []types.Image{
+							{Name: aws.String("image2")},
+						},
 					},
 				},
 			},
@@ -276,10 +288,13 @@ func TestUpdateAMI(t *testing.T) {
 			name: "update existing ami",
 			ami:  "image40-v1.0.0",
 			c: &Client{
-				"account": &Account{
-					Images: []types.Image{
-						{Name: aws.String("image40-v1.0.0"), Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
-						{Name: aws.String("image40-v2.0.0"), Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v2.0.0")}}},
+				AMITags: []string{"Version"},
+				accounts: map[string]*Account{
+					"account": {
+						Images: []types.Image{
+							{Name: aws.String("image40-v1.0.0"), Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
+							{Name: aws.String("image40-v2.0.0"), Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v2.0.0")}}},
+						},
 					},
 				},
 			},
@@ -289,10 +304,13 @@ func TestUpdateAMI(t *testing.T) {
 			name: "update partial ami",
 			ami:  "image-2022.11.30-1669766779",
 			c: &Client{
-				"account": &Account{
-					Images: []types.Image{
-						{Name: aws.String("image-2022.11.30-9999999990"), Tags: []types.Tag{{Key: aws.String("Release"), Value: aws.String("2022.11.30")}}},
-						{Name: aws.String("image-2022.11.31-9999999990"), Tags: []types.Tag{{Key: aws.String("Release"), Value: aws.String("2022.11.31")}}},
+				AMITags: []string{"Release"},
+				accounts: map[string]*Account{
+					"account": {
+						Images: []types.Image{
+							{Name: aws.String("image-2022.11.30-9999999990"), Tags: []types.Tag{{Key: aws.String("Release"), Value: aws.String("2022.11.30")}}},
+							{Name: aws.String("image-2022.11.31-9999999990"), Tags: []types.Tag{{Key: aws.String("Release"), Value: aws.String("2022.11.31")}}},
+						},
 					},
 				},
 			},
@@ -333,7 +351,9 @@ func TestAMIVersion(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		key, val := amiVersion(test.image, test.key)
+		c := Client{AMITags: []string{test.resKey}}
+
+		key, val := c.amiVersion(test.image, test.key)
 		assert.Equal(t, test.resKey, key, test.name)
 		assert.Equal(t, test.resValue, val, test.name)
 	}

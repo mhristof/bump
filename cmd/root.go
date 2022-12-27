@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mhristof/go-git"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
 	version = "devel"
 	pwd     string
 	dryrun  bool
+	origin  string
 )
 
 var rootCmd = &cobra.Command{
@@ -31,6 +34,8 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
+
+		origin = git.Origin(pwd)
 	},
 }
 
@@ -66,8 +71,16 @@ func init() {
 	rootCmd.PersistentFlags().CountP("verbose", "v", "Increase verbosity")
 	rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
 	rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
-	rootCmd.PersistentFlags().StringSliceP("profiles", "p", []string{os.Getenv("AWS_PROFILE")}, "AWS profiles to scan. Specify all for all available profiles")
 	rootCmd.PersistentFlags().BoolP("cache", "c", true, "Enable cache")
+
+	viper.SetConfigName("bump") // name of config file (without extension)
+	viper.SetConfigType("yaml") // REQUIRED if the config file does not have the extension in the name
+	viper.AddConfigPath("$XDG_CONFIG_HOME")
+	err = viper.ReadInConfig() // Find and read the config file
+	if err != nil {            // Handle errors reading the config file
+		log.Info("generated config from current settings")
+		viper.SafeWriteConfig()
+	}
 }
 
 // Execute The main function for the root command.

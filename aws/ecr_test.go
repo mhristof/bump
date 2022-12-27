@@ -19,15 +19,17 @@ func TestUpdateECR(t *testing.T) {
 			name: "single repo without version",
 			repo: "foo",
 			client: Client{
-				"test": &Account{
-					ECRImages: []ecrTypes.ImageDetail{
-						{
-							ImageTags:      []string{"v1.0.0"},
-							RepositoryName: aws.String("foo"),
-						},
-						{
-							ImageTags:      []string{"v2.0.0"},
-							RepositoryName: aws.String("foo"),
+				accounts: map[string]*Account{
+					"test": {
+						ECRImages: []ecrTypes.ImageDetail{
+							{
+								ImageTags:      []string{"v1.0.0"},
+								RepositoryName: aws.String("foo"),
+							},
+							{
+								ImageTags:      []string{"v2.0.0"},
+								RepositoryName: aws.String("foo"),
+							},
 						},
 					},
 				},
@@ -38,8 +40,10 @@ func TestUpdateECR(t *testing.T) {
 			name: "unknown repo",
 			repo: "foo",
 			client: Client{
-				"test": &Account{
-					ECRImages: []ecrTypes.ImageDetail{},
+				accounts: map[string]*Account{
+					"test": {
+						ECRImages: []ecrTypes.ImageDetail{},
+					},
 				},
 			},
 			exp: "foo",

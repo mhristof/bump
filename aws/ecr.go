@@ -105,7 +105,7 @@ func (c *Client) updateECR(name string) string {
 
 	var matches []ecrTypes.ImageDetail
 
-	for account, data := range *c {
+	for account, data := range c.accounts {
 		for _, ecrImage := range data.ECRImages {
 			if *ecrImage.RepositoryName == repo {
 				log.WithFields(log.Fields{

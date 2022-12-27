@@ -30,6 +30,9 @@ test:	## Run all tests
 clean:
 	rm -rf bin/bump.*
 
+install: ./bin/bump.darwin
+	cp ./bin/bump.darwin ~/.local/bin/bump
+
 .PHONY: help
 help:           ## Show this help.
 	@grep '.*:.*##' Makefile | grep -v grep  | sort | sed 's/:.*## /:/g' | column -t -s:

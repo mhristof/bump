@@ -25,31 +25,55 @@ type Account struct {
 	profile        string
 }
 
-type Client map[string]*Account
+type Client struct {
+	accounts map[string]*Account
+	AMITags  []string
+}
+
+type NewInput struct {
+	Ctx      context.Context
+	Profiles []string
+	Cache    bool
+	AMITags  []string
+}
 
 // New Create new aws client and query data for all given profiles
-func New(ctx context.Context, profiles []string, enableCache bool) Client {
-	accounts := Client{}
+func New(input *NewInput) Client {
+	client := Client{
+		AMITags: input.AMITags,
+	}
 
-	for _, profile := range profiles {
-		accounts[profile] = &Account{
-			ec2:     ec2Client(ctx, profile),
-			ecr:     ecrClient(ctx, profile),
-			ctx:     ctx,
+	log.WithFields(log.Fields{
+		"input": input,
+	}).Debug("creating aws with input")
+
+	for _, profile := range input.Profiles {
+		client.accounts[profile] = &Account{
+			ec2:     ec2Client(input.Ctx, profile),
+			ecr:     ecrClient(input.Ctx, profile),
+			ctx:     input.Ctx,
 			profile: profile,
 		}
 	}
 
-	if enableCache {
+	if input.Cache {
 		cached := cache.Load()
-		err := json.Unmarshal(cached, &accounts)
+		err := json.Unmarshal(cached, &client.accounts)
 		if err == nil {
-			return accounts
+			filtered := map[string]*Account{}
+
+			for _, profile := range input.Profiles {
+				filtered[profile] = client.accounts[profile]
+			}
+
+			client.accounts = filtered
+
+			return client
 		}
 	}
 
 	var wg sync.WaitGroup
-	for profile, c := range accounts {
+	for profile, c := range client.accounts {
 		data := map[string]func() error{
 			"amis":      c.amis,
 			"ECRImages": c.findECRImages,
@@ -88,8 +112,8 @@ func New(ctx context.Context, profiles []string, enableCache bool) Client {
 
 	wg.Wait()
 
-	cache.Write(accounts)
-	return accounts
+	cache.Write(client.accounts)
+	return client
 }
 
 func (c *Client) Update(name string) string {

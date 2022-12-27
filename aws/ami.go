@@ -59,7 +59,7 @@ func (c *Client) findAMI(name string) (types.Image, []types.Image) {
 	var exact types.Image
 	var partial []types.Image
 
-	for _, resources := range *c {
+	for _, resources := range c.accounts {
 		for _, image := range resources.Images {
 			if *image.Name == name {
 				exact = image
@@ -97,7 +97,7 @@ func (c *Client) updateAMI(name string) string {
 		"thisImage":    thisImage,
 	}).Debug("found Image")
 
-	for account, resources := range *c {
+	for account, resources := range c.accounts {
 		for _, image := range resources.Images {
 			if amiCompare(thisImage, &image, cleanName) {
 				log.WithFields(log.Fields{
@@ -125,14 +125,14 @@ func (c *Client) updateAMI(name string) string {
 	nextVersion := ""
 
 	if thisImage.Name != nil {
-		nextVersion = nextAMIVersion(images, thisImage)
+		nextVersion = nextAMIVersion(c, images, thisImage)
 		log.WithFields(log.Fields{
 			"nextVersion": nextVersion,
 		}).Debug("from exact match")
 	}
 
 	if nextVersion == "" && len(partialMatchedVersions) > 0 {
-		nextVersion = nextAMIVersion(partialMatchedVersions, partialMatchedVersions[mapKeys(partialMatchedVersions)[0]])
+		nextVersion = nextAMIVersion(c, partialMatchedVersions, partialMatchedVersions[mapKeys(partialMatchedVersions)[0]])
 		log.WithFields(log.Fields{
 			"nextVersion": nextVersion,
 		}).Debug("from partial match")
@@ -141,19 +141,16 @@ func (c *Client) updateAMI(name string) string {
 	return nextVersion
 }
 
-func amiVersion(image types.Image, key string) (string, string) {
+func (c *Client) amiVersion(image types.Image, key string) (string, string) {
 	for _, tag := range image.Tags {
 		if key != "" && *tag.Key == key {
 			return key, *tag.Value
 		}
 
-		switch *tag.Key {
-		case "CI_COMMIT_REF_NAME":
-			fallthrough
-		case "Version":
-			fallthrough
-		case "Release":
-			return *tag.Key, *tag.Value
+		for _, vTag := range c.AMITags {
+			if vTag == *tag.Key {
+				return *tag.Key, *tag.Value
+			}
 		}
 	}
 
@@ -199,12 +196,12 @@ func amiCompare(this types.Image, that *types.Image, trimmedName string) bool {
 	return false
 }
 
-func nextAMIVersion(images map[string]types.Image, current types.Image) string {
+func nextAMIVersion(c *Client, images map[string]types.Image, current types.Image) string {
 	if len(images) == 0 {
 		return *current.Name
 	}
 
-	versionKey, versionValue := amiVersion(current, "")
+	versionKey, versionValue := c.amiVersion(current, "")
 	isSemver := semver.IsValid(versionValue)
 
 	log.WithFields(log.Fields{
@@ -216,7 +213,7 @@ func nextAMIVersion(images map[string]types.Image, current types.Image) string {
 
 	versions := make(map[string]string, len(images))
 	for k, v := range images {
-		_, version := amiVersion(v, versionKey)
+		_, version := c.amiVersion(v, versionKey)
 		if isSemver && !semver.IsValid(version) {
 			continue
 		}
