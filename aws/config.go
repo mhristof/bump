@@ -2,7 +2,7 @@ package aws
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/mitchellh/go-homedir"
@@ -87,7 +87,7 @@ func ProfilesFromConfig() []string {
 }
 
 func actualProfiles(config string) []string {
-	data, err := ioutil.ReadFile(config)
+	data, err := os.ReadFile(config)
 	if err != nil {
 		panic(err)
 	}

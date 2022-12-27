@@ -2,7 +2,6 @@ package cache
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 
 	"github.com/adrg/xdg"
@@ -36,7 +35,7 @@ func Write(data interface{}) {
 }
 
 func Load() []byte {
-	data, err := ioutil.ReadFile(path())
+	data, err := os.ReadFile(path())
 	if err != nil {
 		panic(err)
 	}
