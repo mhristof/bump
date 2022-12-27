@@ -76,6 +76,13 @@ func (c *Client) findAMI(name string) (types.Image, []types.Image) {
 	return exact, partial
 }
 
+func pointerString(in *string) string {
+	if in == nil {
+		return "nil"
+	}
+	return *in
+}
+
 func (c *Client) updateAMI(name string) string {
 	images := map[string]types.Image{}
 	partialMatchedVersions := map[string]types.Image{}
@@ -84,9 +91,10 @@ func (c *Client) updateAMI(name string) string {
 	cleanName := trimImageName(name)
 
 	log.WithFields(log.Fields{
-		"name":         *thisImage.Name,
+		"name":         pointerString(thisImage.Name),
 		"len(partial)": len(partialImages),
 		"cleanName":    cleanName,
+		"thisImage":    thisImage,
 	}).Debug("found Image")
 
 	for account, resources := range *c {
@@ -97,12 +105,10 @@ func (c *Client) updateAMI(name string) string {
 					"cleanName":      cleanName,
 					"name":           name,
 					"account":        account,
-					"thisImage.Name": *thisImage.Name,
+					"thisImage.Name": pointerString(thisImage.Name),
 				}).Debug("found matching candidate")
 
 				images[*image.Name] = image
-
-				continue
 			}
 
 			for _, pImage := range partialImages {
@@ -125,8 +131,8 @@ func (c *Client) updateAMI(name string) string {
 		}).Debug("from exact match")
 	}
 
-	if nextVersion == "" {
-		nextVersion := nextAMIVersion(partialMatchedVersions, partialMatchedVersions[mapKeys(partialMatchedVersions)[0]])
+	if nextVersion == "" && len(partialMatchedVersions) > 0 {
+		nextVersion = nextAMIVersion(partialMatchedVersions, partialMatchedVersions[mapKeys(partialMatchedVersions)[0]])
 		log.WithFields(log.Fields{
 			"nextVersion": nextVersion,
 		}).Debug("from partial match")
@@ -142,8 +148,6 @@ func amiVersion(image types.Image, key string) (string, string) {
 		}
 
 		switch *tag.Key {
-		case "CreationDate":
-			return key, *image.CreationDate
 		case "CI_COMMIT_REF_NAME":
 			fallthrough
 		case "Version":

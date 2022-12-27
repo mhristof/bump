@@ -5,7 +5,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -105,7 +104,7 @@ func TestAmiCompare(t *testing.T) {
 		},
 	}
 
-	log.SetLevel(log.TraceLevel)
+	// log.SetLevel(log.TraceLevel)
 	for _, test := range cases {
 		assert.Equal(t, test.ret, amiCompare(test.this, test.that, test.trimmedAMI), test.name)
 	}
@@ -201,5 +200,141 @@ func TestNextAMIVersion(t *testing.T) {
 	// log.SetLevel(log.TraceLevel)
 	for _, test := range cases {
 		assert.Equal(t, test.ret, nextAMIVersion(test.images, test.current), test.name)
+	}
+}
+
+func TestFindAMI(t *testing.T) {
+	cases := []struct {
+		name     string
+		c        *Client
+		ami      string
+		match    types.Image
+		partials []types.Image
+	}{
+		{
+			name: "found exact match without partials",
+			ami:  "image1",
+			c: &Client{
+				"account": &Account{
+					Images: []types.Image{
+						{
+							Name: aws.String("image1"),
+						},
+					},
+				},
+			},
+			match: types.Image{
+				Name: aws.String("image1"),
+			},
+		},
+		{
+			name: "found exact match with partials",
+			ami:  "image1",
+			c: &Client{
+				"account": &Account{
+					Images: []types.Image{
+						{Name: aws.String("image1")},
+						{Name: aws.String("image1-v1.0.0")},
+					},
+				},
+			},
+			match: types.Image{
+				Name: aws.String("image1"),
+			},
+			partials: []types.Image{
+				{Name: aws.String("image1-v1.0.0")},
+			},
+		},
+		{
+			name: "nothing found",
+			ami:  "image1",
+			c: &Client{
+				"account": &Account{
+					Images: []types.Image{
+						{Name: aws.String("image2")},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range cases {
+		match, partials := test.c.findAMI(test.ami)
+		assert.Equal(t, test.match, match, test.name)
+		assert.Equal(t, test.partials, partials, test.name)
+	}
+}
+
+func TestUpdateAMI(t *testing.T) {
+	cases := []struct {
+		name string
+		c    *Client
+		ami  string
+		res  string
+	}{
+		{
+			name: "update existing ami",
+			ami:  "image40-v1.0.0",
+			c: &Client{
+				"account": &Account{
+					Images: []types.Image{
+						{Name: aws.String("image40-v1.0.0"), Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v1.0.0")}}},
+						{Name: aws.String("image40-v2.0.0"), Tags: []types.Tag{{Key: aws.String("Version"), Value: aws.String("v2.0.0")}}},
+					},
+				},
+			},
+			res: "image40-v2.0.0",
+		},
+		{
+			name: "update partial ami",
+			ami:  "image-2022.11.30-1669766779",
+			c: &Client{
+				"account": &Account{
+					Images: []types.Image{
+						{Name: aws.String("image-2022.11.30-9999999990"), Tags: []types.Tag{{Key: aws.String("Release"), Value: aws.String("2022.11.30")}}},
+						{Name: aws.String("image-2022.11.31-9999999990"), Tags: []types.Tag{{Key: aws.String("Release"), Value: aws.String("2022.11.31")}}},
+					},
+				},
+			},
+			res: "image-2022.11.31-9999999990",
+		},
+	}
+
+	// log.SetLevel(log.TraceLevel)
+	for _, test := range cases {
+		assert.Equal(t, test.res, test.c.updateAMI(test.ami), test.name)
+	}
+}
+
+func TestAMIVersion(t *testing.T) {
+	cases := []struct {
+		name     string
+		image    types.Image
+		key      string
+		resKey   string
+		resValue string
+	}{
+		{
+			name: "creation date without any tags",
+			image: types.Image{
+				CreationDate: aws.String("2000-01-01"),
+			},
+			resKey:   "CreationDate",
+			resValue: "2000-01-01",
+		},
+		{
+			name: "gitlab ci ref name",
+			image: types.Image{
+				Tags: []types.Tag{{Key: aws.String("CI_COMMIT_REF_NAME"), Value: aws.String("1")}},
+			},
+			resKey:   "CI_COMMIT_REF_NAME",
+			resValue: "1",
+		},
+	}
+
+	for _, test := range cases {
+		key, val := amiVersion(test.image, test.key)
+		assert.Equal(t, test.resKey, key, test.name)
+		assert.Equal(t, test.resValue, val, test.name)
 	}
 }
