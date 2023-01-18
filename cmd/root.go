@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/MakeNowJust/heredoc"
 	"github.com/mhristof/go-git"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -18,9 +19,11 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "bump",
-	Short:   "Bump versions left and right",
-	Long:    `TODO: changeme`,
+	Use:   "bump",
+	Short: "Bump versions left and right",
+	Long: heredoc.Doc(`
+		Bump versions for different stuff.
+	`),
 	Version: version,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		Verbose(cmd)

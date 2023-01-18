@@ -3,6 +3,7 @@ module github.com/mhristof/bump
 go 1.19
 
 require (
+	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/adrg/xdg v0.4.0
 	github.com/aws/aws-sdk-go-v2 v1.17.3
 	github.com/aws/aws-sdk-go-v2/config v1.18.7
