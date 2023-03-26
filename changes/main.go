@@ -2,6 +2,7 @@ package changes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -30,20 +31,39 @@ func New(src []string) Changes {
 	var ret Changes
 
 	for _, s := range src {
-		semverRegex := regexp.MustCompile(`v?\d+\.\d+\.\d+`)
+		_, err := os.Stat(s)
+		if !errors.Is(err, os.ErrNotExist) {
+			log.WithField("file", s).Debug("File exists, skipping")
+			// parseHCL(s)
+
+			continue
+		}
 
 		log.WithField("string", s).Debug("Checking string")
 
-		if semverRegex.MatchString(s) {
+		ver := extractVersion(s)
+		if ver != nil {
 			log.WithField("string", s).Debug("Found version")
 			ret = append(ret, &Change{
 				line:    s,
-				version: semver.MustParse(semverRegex.FindString(s)),
+				version: ver,
 			})
+
+			continue
 		}
 	}
 
 	return ret
+}
+
+func extractVersion(line string) *semver.Version {
+	semverRegex := regexp.MustCompile(`v?\d+\.\d+\.\d+`)
+
+	if semverRegex.MatchString(line) {
+		return semver.MustParse(semverRegex.FindString(line))
+	}
+
+	return nil
 }
 
 func (c *Changes) Update() {
