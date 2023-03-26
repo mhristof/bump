@@ -11,10 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var (
-	version = "devel" // pwd     string
-	dryrun  bool
-)
+var version = "devel" // pwd     string
 
 // origin  string
 
@@ -37,7 +34,7 @@ var rootCmd = &cobra.Command{
 		for _, c := range ch {
 			log.WithField("change", c).Debug("Change")
 
-			if dryrun {
+			if viper.GetBool("dryrun") {
 				log.WithField("change", c).Info("Change")
 
 				continue
@@ -48,19 +45,6 @@ var rootCmd = &cobra.Command{
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		Verbose(cmd)
-		// cwd, err := cmd.Flags().GetString("cwd")
-		// if err != nil {
-		// panic(err)
-		// }
-		// pwd = cwd
-
-		var err error
-		dryrun, err = cmd.Flags().GetBool("dryrun")
-		if err != nil {
-			panic(err)
-		}
-
-		// origin = git.Origin(pwd)
 	},
 }
 
@@ -91,6 +75,7 @@ func init() {
 	rootCmd.PersistentFlags().IntP("max-procs", "P", 10, "Number of max threads to run when available")
 
 	viper.BindPFlag("max-procs", rootCmd.PersistentFlags().Lookup("max-procs"))
+	viper.BindPFlag("dryrun", rootCmd.PersistentFlags().Lookup("dryrun"))
 
 	viper.SetConfigName("bump") // name of config file (without extension)
 	viper.SetConfigType("yaml") // REQUIRED if the config file does not have the extension in the name
