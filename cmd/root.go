@@ -5,18 +5,15 @@ import (
 	"os"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/mhristof/go-git"
+	"github.com/mhristof/bump/changes"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var (
-	version = "devel"
-	pwd     string
-	dryrun  bool
-	origin  string
-)
+var version = "devel" // pwd     string
+// dryrun  bool
+// origin  string
 
 var rootCmd = &cobra.Command{
 	Use:   "bump",
@@ -25,20 +22,30 @@ var rootCmd = &cobra.Command{
 		Bump versions for different stuff.
 	`),
 	Version: version,
+	Run: func(cmd *cobra.Command, args []string) {
+		ch := changes.New(args)
+
+		ch.Update()
+
+		for _, c := range ch {
+			log.WithField("change", c).Debug("Change")
+			println(c.NewLine)
+		}
+	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		Verbose(cmd)
-		cwd, err := cmd.Flags().GetString("cwd")
-		if err != nil {
-			panic(err)
-		}
-		pwd = cwd
+		// cwd, err := cmd.Flags().GetString("cwd")
+		// if err != nil {
+		// panic(err)
+		// }
+		// pwd = cwd
 
-		dryrun, err = cmd.Flags().GetBool("dryrun")
-		if err != nil {
-			panic(err)
-		}
+		// dryrun, err = cmd.Flags().GetBool("dryrun")
+		// if err != nil {
+		// panic(err)
+		// }
 
-		origin = git.Origin(pwd)
+		// origin = git.Origin(pwd)
 	},
 }
 
@@ -66,21 +73,21 @@ func Verbose(cmd *cobra.Command) {
 }
 
 func init() {
-	pwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	// pwd, err := os.Getwd()
+	// if err != nil {
+	// panic(err)
+	// }
 
 	rootCmd.PersistentFlags().CountP("verbose", "v", "Increase verbosity")
-	rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
-	rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
+	// rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
+	// rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
 	rootCmd.PersistentFlags().BoolP("cache", "c", true, "Enable cache")
 
 	viper.SetConfigName("bump") // name of config file (without extension)
 	viper.SetConfigType("yaml") // REQUIRED if the config file does not have the extension in the name
 	viper.AddConfigPath("$XDG_CONFIG_HOME")
-	err = viper.ReadInConfig() // Find and read the config file
-	if err != nil {            // Handle errors reading the config file
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil {             // Handle errors reading the config file
 		log.Info("generated config from current settings")
 		viper.SafeWriteConfig()
 	}
