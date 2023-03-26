@@ -19,6 +19,17 @@ type Changes []*Change
 
 type Format int
 
+func (f Format) String() string {
+	switch f {
+	case String:
+		return "string"
+	case Terraform:
+		return "terraform"
+	}
+
+	return "unsupported"
+}
+
 const (
 	String Format = iota
 	Terraform
@@ -37,7 +48,7 @@ type Change struct {
 func (c Change) String() string {
 	switch c.format {
 	case String:
-		return fmt.Sprintf("%s -> %s", c.line, c.NewLine)
+		return fmt.Sprintf("%s -- %s -> %s", c.file, c.line, c.NewLine)
 	case Terraform:
 		return fmt.Sprintf("%s:%s:%s -> %s", c.file, c.Module, c.version, c.newVersion)
 	}
@@ -50,14 +61,51 @@ func New(src []string) Changes {
 
 	for _, s := range src {
 		_, err := os.Stat(s)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+
+		log.WithField("file", s).Debug("file")
+
+		ret = append(ret, &Change{
+			file: s,
+		})
+
+		data, err := os.ReadFile(s)
+		if err != nil {
+			log.WithField("file", s).Error("Failed to read file")
+			continue
+		}
+
+		for _, line := range strings.Split(string(data), "\n") {
+			ver := extractVersion(line)
+			if ver != nil {
+				log.WithFields(log.Fields{
+					"string":  s,
+					"version": ver,
+					"line":    line,
+				}).Debug("found version")
+
+				ret = append(ret, &Change{
+					line:    line,
+					version: ver,
+					file:    s,
+				})
+
+				continue
+			}
+
+		}
+	}
+
+	for _, s := range src {
+		_, err := os.Stat(s)
 		if !errors.Is(err, os.ErrNotExist) {
 			log.WithField("file", s).Debug("file")
 
 			ret = append(ret, &Change{
 				file: s,
 			})
-
-			continue
 		}
 
 		log.WithField("string", s).Debug("Checking string")
@@ -88,39 +136,46 @@ func extractVersion(line string) *semver.Version {
 }
 
 func (c *Changes) Update() {
+	parsed := map[string]struct{}{}
+
+	var changed Changes
 	for _, change := range *c {
-		log.WithField("change", change).Debug("Updating")
+		log.WithField("change", change).Trace("checking change")
 
 		switch {
-		case strings.HasSuffix(change.file, ".tf"):
-			tfChanges := parseHCL(change.file)
-			*c = append(*c, tfChanges...)
-
 		case strings.Contains(change.line, "https://gitlab.com"):
 			log.WithField("change", change).Debug("Updating gitlab link")
 
 		case strings.Contains(change.line, "https://github.com"):
 			log.WithField("change", change).Debug("Updating github link")
 
-			change.NewLine = githubUpdate(change.line, change.version)
+			newContents, newVersion := githubUpdate(change.line, change.version)
+			change.NewLine = newContents
+			change.newVersion = newVersion
 
+			changed = append(changed, change)
 			log.WithField("change", change).Debug("Updated github link")
+
+		case strings.HasSuffix(change.file, ".tf"):
+			if _, ok := parsed[change.file]; ok {
+				log.WithField("file", change.file).Debug("already parsed with HCL")
+
+				continue
+			}
+			tfChanges := parseHCL(change.file)
+
+			log.WithField("changes", tfChanges).Debug("Found HCL changes")
+			parsed[change.file] = struct{}{}
+			changed = append(changed, tfChanges...)
 		}
 	}
 
-	// remove empty changes.
-	ret := Changes{}
-	for _, change := range *c {
-		if change.NewLine == "" {
-			continue
-		}
-		ret = append(ret, change)
-	}
+	log.WithField("len", len(changed)).Debug("number of changes")
 
-	*c = ret
+	*c = changed
 }
 
-func githubUpdate(line string, version *semver.Version) string {
+func githubUpdate(line string, version *semver.Version) (string, *semver.Version) {
 	ctx := context.Background()
 
 	token := os.Getenv("GITHUB_READONLY_TOKEN")
@@ -150,7 +205,7 @@ func githubUpdate(line string, version *semver.Version) string {
 	semverReleases := make([]*semver.Version, len(releases))
 
 	for i, release := range releases {
-		log.WithField("release", release.GetTagName()).Debug("Release")
+		log.WithField("release", release.GetTagName()).Trace("Release")
 		semverReleases[i] = semver.MustParse(release.GetTagName())
 	}
 
@@ -159,9 +214,38 @@ func githubUpdate(line string, version *semver.Version) string {
 	for i := len(semverReleases) - 1; i >= 0; i-- {
 		if semverReleases[i].Compare(version) > 0 {
 			log.WithField("version", semverReleases[i].String()).Debug("Found version")
-			return strings.ReplaceAll(line, version.String(), semverReleases[i].String())
+			return strings.ReplaceAll(line, version.String(), semverReleases[i].String()), semverReleases[i]
 		}
 	}
 
-	return line
+	return line, nil
+}
+
+func (c Change) Apply() {
+	data, err := os.ReadFile(c.file)
+	if err != nil {
+		panic(err)
+	}
+
+	switch c.format {
+	case String:
+		data = []byte(strings.ReplaceAll(string(data), c.line, c.NewLine))
+	case Terraform:
+		log.WithFields(log.Fields{
+			"file":    c.file,
+			"version": c.version,
+			"new":     c.newVersion,
+		}).Debug("Updating terraform file")
+
+		data = []byte(strings.ReplaceAll(string(data), c.version.String(), c.newVersion.String()))
+	}
+
+	fileStat, err := os.Stat(c.file)
+	if err != nil {
+		panic(err)
+	}
+
+	os.WriteFile(c.file, data, fileStat.Mode())
+
+	log.WithField("file", c.file).Info("Updated file")
 }

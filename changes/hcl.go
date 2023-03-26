@@ -3,7 +3,6 @@ package changes
 import (
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/Masterminds/semver"
 	"github.com/hashicorp/hcl/v2/hclsimple"
@@ -53,7 +52,6 @@ func parseHCL(path string) Changes {
 
 				ret = append(ret, &Change{
 					line:       string(data),
-					NewLine:    strings.ReplaceAll(string(data), module.Version, versions[i].String()),
 					Module:     module.Name,
 					file:       path,
 					format:     Terraform,

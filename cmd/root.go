@@ -11,8 +11,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-var version = "devel" // pwd     string
-// dryrun  bool
+var (
+	version = "devel" // pwd     string
+	dryrun  bool
+)
+
 // origin  string
 
 var rootCmd = &cobra.Command{
@@ -20,6 +23,8 @@ var rootCmd = &cobra.Command{
 	Short: "Bump versions left and right",
 	Long: heredoc.Doc(`
 		Bump versions for different stuff.
+
+		You can pass a string or a file
 	`),
 	Version: version,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -27,8 +32,18 @@ var rootCmd = &cobra.Command{
 
 		ch.Update()
 
+		log.WithField("len", len(ch)).Debug("number of changes")
+
 		for _, c := range ch {
 			log.WithField("change", c).Debug("Change")
+
+			if dryrun {
+				log.WithField("change", c).Info("Change")
+
+				continue
+			}
+
+			c.Apply()
 		}
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -39,10 +54,11 @@ var rootCmd = &cobra.Command{
 		// }
 		// pwd = cwd
 
-		// dryrun, err = cmd.Flags().GetBool("dryrun")
-		// if err != nil {
-		// panic(err)
-		// }
+		var err error
+		dryrun, err = cmd.Flags().GetBool("dryrun")
+		if err != nil {
+			panic(err)
+		}
 
 		// origin = git.Origin(pwd)
 	},
@@ -78,7 +94,7 @@ func init() {
 	// }
 
 	rootCmd.PersistentFlags().CountP("verbose", "v", "Increase verbosity")
-	// rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
+	rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
 	// rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
 	rootCmd.PersistentFlags().BoolP("cache", "c", true, "Enable cache")
 
