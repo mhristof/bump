@@ -136,12 +136,13 @@ func extractVersion(line string) *semver.Version {
 	return nil
 }
 
-func (c *Changes) Update() {
+func (c *Changes) Update(threads int) {
 	parsed := map[string]struct{}{}
 
-	aws := awsdata.New()
+	aws := awsdata.New(threads)
 
 	var changed Changes
+
 	for _, change := range *c {
 		log.WithField("change", change).Trace("checking change")
 

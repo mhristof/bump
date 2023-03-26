@@ -30,7 +30,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		ch := changes.New(args)
 
-		ch.Update()
+		ch.Update(viper.GetInt("max-procs"))
 
 		log.WithField("len", len(ch)).Debug("number of changes")
 
@@ -83,20 +83,14 @@ func Verbose(cmd *cobra.Command) {
 	}
 
 	log.SetLevel(level)
-
-	// log.SetFormatter(&log.JSONFormatter{})
 }
 
 func init() {
-	// pwd, err := os.Getwd()
-	// if err != nil {
-	// panic(err)
-	// }
-
 	rootCmd.PersistentFlags().CountP("verbose", "v", "Increase verbosity")
 	rootCmd.PersistentFlags().BoolP("dryrun", "n", false, "Dry run")
-	// rootCmd.PersistentFlags().StringP("cwd", "C", pwd, "Run from that directory")
-	rootCmd.PersistentFlags().BoolP("cache", "c", true, "Enable cache")
+	rootCmd.PersistentFlags().IntP("max-procs", "P", 10, "Number of max threads to run when available")
+
+	viper.BindPFlag("max-procs", rootCmd.PersistentFlags().Lookup("max-procs"))
 
 	viper.SetConfigName("bump") // name of config file (without extension)
 	viper.SetConfigType("yaml") // REQUIRED if the config file does not have the extension in the name

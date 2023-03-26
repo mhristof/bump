@@ -68,10 +68,11 @@ func awsProfiles() []string {
 	return profiles
 }
 
-func New() *AWS {
+func New(threads int) *AWS {
 	ret := AWS{
 		repos:    map[string][]*semver.Version{},
 		services: map[string]*ecr.Client{},
+		threads:  threads,
 	}
 
 	for _, profile := range awsProfiles() {
@@ -96,6 +97,7 @@ type AWS struct {
 	services map[string]*ecr.Client
 	repos    map[string][]*semver.Version
 	reposMux sync.Mutex
+	threads  int
 }
 
 func (a *AWS) Tags(repositoryName string) []*semver.Version {
@@ -105,8 +107,11 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(a.services))
+	guard := make(chan struct{}, a.threads)
 
 	for _, client := range a.services {
+		guard <- struct{}{}
+
 		go func(client *ecr.Client) {
 			defer wg.Done()
 			regionRepos := ecrRepo(client, repositoryName)
@@ -115,6 +120,7 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 			defer a.reposMux.Unlock()
 
 			a.repos[repositoryName] = append(a.repos[repositoryName], regionRepos...)
+			<-guard
 		}(client)
 	}
 
