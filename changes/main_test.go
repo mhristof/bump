@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/stretchr/testify/assert"
 )
 

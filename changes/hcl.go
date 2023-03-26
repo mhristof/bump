@@ -4,7 +4,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/mhristof/bump/terraform"
 	log "github.com/sirupsen/logrus"

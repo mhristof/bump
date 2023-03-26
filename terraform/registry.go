@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	log "github.com/sirupsen/logrus"
 )
 

@@ -9,8 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v50/github"
+	"github.com/mhristof/bump/awsdata"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
@@ -138,11 +139,28 @@ func extractVersion(line string) *semver.Version {
 func (c *Changes) Update() {
 	parsed := map[string]struct{}{}
 
+	aws := awsdata.New()
+
 	var changed Changes
 	for _, change := range *c {
 		log.WithField("change", change).Trace("checking change")
 
 		switch {
+		case strings.Contains(change.line, "dkr.ecr"):
+			log.WithFields(log.Fields{
+				"change":         change,
+				"line":           change.line,
+				"change.version": change.version,
+			}).Debug("Updating ECR link")
+
+			newContents, newVersion := updateECR(aws, change.line, change.version)
+			if newVersion == nil {
+				continue
+			}
+			change.NewLine = newContents
+			change.newVersion = newVersion
+			changed = append(changed, change)
+
 		case strings.Contains(change.line, "https://gitlab.com"):
 			log.WithField("change", change).Debug("Updating gitlab link")
 
@@ -222,6 +240,10 @@ func githubUpdate(line string, version *semver.Version) (string, *semver.Version
 }
 
 func (c Change) Apply() {
+	if c.file == "" {
+		return
+	}
+
 	data, err := os.ReadFile(c.file)
 	if err != nil {
 		panic(err)
