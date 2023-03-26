@@ -27,7 +27,7 @@ const (
 type Change struct {
 	line       string
 	NewLine    string
-	module     string
+	Module     string
 	file       string
 	version    *semver.Version
 	newVersion *semver.Version
@@ -39,7 +39,7 @@ func (c Change) String() string {
 	case String:
 		return fmt.Sprintf("%s -> %s", c.line, c.NewLine)
 	case Terraform:
-		return fmt.Sprintf("%s:%s:%s -> %s", c.file, c.module, c.version, c.newVersion)
+		return fmt.Sprintf("%s:%s:%s -> %s", c.file, c.Module, c.version, c.newVersion)
 	}
 
 	return "unsupportred format"

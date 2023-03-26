@@ -54,7 +54,7 @@ func parseHCL(path string) Changes {
 				ret = append(ret, &Change{
 					line:       string(data),
 					NewLine:    strings.ReplaceAll(string(data), module.Version, versions[i].String()),
-					module:     module.Name,
+					Module:     module.Name,
 					file:       path,
 					format:     Terraform,
 					version:    moduleVersion,
