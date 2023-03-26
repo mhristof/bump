@@ -8,6 +8,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	ecrTypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/ini.v1"
@@ -131,15 +132,26 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 }
 
 func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
-	// describe repositories
-	repos, err := client.DescribeRepositories(context.Background(), &ecr.DescribeRepositoriesInput{})
-	if err != nil {
+	// describe repositories all pages
+	paginator := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
+
+	repos := []ecrTypes.Repository{}
+	for page := 0; paginator.HasMorePages(); page++ {
+		page, err := paginator.NextPage(context.Background())
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Error("Failed to describe repositories")
+		}
+
 		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Failed to describe repositories")
+			"page": page,
+		}).Trace("retrieved repos page")
+
+		repos = append(repos, page.Repositories...)
 	}
 
-	for _, repo := range repos.Repositories {
+	for _, repo := range repos {
 		log.WithFields(log.Fields{
 			"repo": *repo.RepositoryUri,
 		}).Trace("Repository")
@@ -152,19 +164,26 @@ func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
 			"repo": *repo.RepositoryUri,
 		}).Debug("Repository")
 
-		// describe images
-		images, err := client.DescribeImages(context.Background(), &ecr.DescribeImagesInput{
+		// describe image tags with pages
+		paginator := ecr.NewDescribeImagesPaginator(client, &ecr.DescribeImagesInput{
 			RepositoryName: repo.RepositoryName,
 		})
-		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-			}).Error("Failed to describe images")
+
+		images := []ecrTypes.ImageDetail{}
+		for page := 0; paginator.HasMorePages(); page++ {
+			page, err := paginator.NextPage(context.Background())
+			if err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Error("Failed to describe images")
+			}
+
+			images = append(images, page.ImageDetails...)
 		}
 
 		var semverImages []*semver.Version
 
-		for _, image := range images.ImageDetails {
+		for _, image := range images {
 			for _, tag := range image.ImageTags {
 				log.WithFields(log.Fields{
 					"image": tag,
