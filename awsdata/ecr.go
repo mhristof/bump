@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -94,6 +95,7 @@ func New() *AWS {
 type AWS struct {
 	services map[string]*ecr.Client
 	repos    map[string][]*semver.Version
+	reposMux sync.Mutex
 }
 
 func (a *AWS) Tags(repositoryName string) []*semver.Version {
@@ -101,9 +103,22 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 		return a.repos[repositoryName]
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(len(a.services))
+
 	for _, client := range a.services {
-		a.repos[repositoryName] = append(a.repos[repositoryName], ecrRepo(client, repositoryName)...)
+		go func(client *ecr.Client) {
+			defer wg.Done()
+			regionRepos := ecrRepo(client, repositoryName)
+
+			a.reposMux.Lock()
+			defer a.reposMux.Unlock()
+
+			a.repos[repositoryName] = append(a.repos[repositoryName], regionRepos...)
+		}(client)
 	}
+
+	wg.Wait()
 
 	uniqueVersions := map[string]*semver.Version{}
 	for _, version := range a.repos[repositoryName] {
