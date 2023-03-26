@@ -132,7 +132,6 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 }
 
 func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
-	// describe repositories all pages
 	paginator := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
 
 	repos := []ecrTypes.Repository{}
@@ -141,6 +140,7 @@ func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
+				"page":  page,
 			}).Error("Failed to describe repositories")
 		}
 
@@ -175,6 +175,7 @@ func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err,
+					"page":  page,
 				}).Error("Failed to describe images")
 			}
 
