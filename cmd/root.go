@@ -29,7 +29,6 @@ var rootCmd = &cobra.Command{
 
 		for _, c := range ch {
 			log.WithField("change", c).Debug("Change")
-			println(c.NewLine)
 		}
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {

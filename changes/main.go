@@ -17,24 +17,45 @@ import (
 
 type Changes []*Change
 
+type Format int
+
+const (
+	String Format = iota
+	Terraform
+)
+
 type Change struct {
-	line    string
-	NewLine string
-	version *semver.Version
+	line       string
+	NewLine    string
+	module     string
+	file       string
+	version    *semver.Version
+	newVersion *semver.Version
+	format     Format
 }
 
 func (c Change) String() string {
-	return fmt.Sprintf("%s -> %s", c.line, c.NewLine)
+	switch c.format {
+	case String:
+		return fmt.Sprintf("%s -> %s", c.line, c.NewLine)
+	case Terraform:
+		return fmt.Sprintf("%s:%s:%s -> %s", c.file, c.module, c.version, c.newVersion)
+	}
+
+	return "unsupportred format"
 }
 
 func New(src []string) Changes {
-	var ret Changes
+	ret := Changes{}
 
 	for _, s := range src {
 		_, err := os.Stat(s)
 		if !errors.Is(err, os.ErrNotExist) {
-			log.WithField("file", s).Debug("File exists, skipping")
-			// parseHCL(s)
+			log.WithField("file", s).Debug("file")
+
+			ret = append(ret, &Change{
+				file: s,
+			})
 
 			continue
 		}
@@ -71,8 +92,13 @@ func (c *Changes) Update() {
 		log.WithField("change", change).Debug("Updating")
 
 		switch {
+		case strings.HasSuffix(change.file, ".tf"):
+			tfChanges := parseHCL(change.file)
+			*c = append(*c, tfChanges...)
+
 		case strings.Contains(change.line, "https://gitlab.com"):
 			log.WithField("change", change).Debug("Updating gitlab link")
+
 		case strings.Contains(change.line, "https://github.com"):
 			log.WithField("change", change).Debug("Updating github link")
 
@@ -81,6 +107,17 @@ func (c *Changes) Update() {
 			log.WithField("change", change).Debug("Updated github link")
 		}
 	}
+
+	// remove empty changes.
+	ret := Changes{}
+	for _, change := range *c {
+		if change.NewLine == "" {
+			continue
+		}
+		ret = append(ret, change)
+	}
+
+	*c = ret
 }
 
 func githubUpdate(line string, version *semver.Version) string {
