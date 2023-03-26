@@ -20,13 +20,45 @@ func awsProfiles() []string {
 	}
 
 	config, err := ini.Load(configPath)
+	if err != nil {
+		return []string{}
+	}
 
 	profiles := []string{}
+
+	accountRoles := map[string]string{}
 
 	for _, section := range config.Sections() {
 		if !strings.HasPrefix(section.Name(), "profile ") {
 			continue
 		}
+
+		accountID := section.Key("sso_account_id").String()
+		region := section.Key("region").String()
+		role := section.Key("sso_role_name").String()
+
+		key := accountID + "/" + region
+
+		existingRole, ok := accountRoles[key]
+		if ok && strings.Contains(existingRole, "ReadOnly") {
+			log.WithFields(log.Fields{
+				"key":       key,
+				"accountID": accountID,
+				"role":      role,
+			}).Debug("skipping role, already have a readonly one")
+
+			continue
+		}
+
+		log.WithFields(log.Fields{
+			"accountID":    accountID,
+			"region":       region,
+			"replaced":     ok,
+			"existingRole": existingRole,
+			"role":         role,
+		}).Debug("updating/adding role")
+
+		accountRoles[key] = role
 
 		profiles = append(profiles, strings.ReplaceAll(section.Name(), "profile ", ""))
 	}

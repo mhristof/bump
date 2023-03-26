@@ -31,6 +31,7 @@ clean:
 	rm -rf bin/bump.*
 
 install: ./bin/bump.darwin
+	rm -rf ~/.local/bin/bump
 	cp ./bin/bump.darwin ~/.local/bin/bump
 
 .PHONY: help
