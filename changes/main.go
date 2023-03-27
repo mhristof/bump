@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v50/github"
@@ -48,14 +50,45 @@ type Change struct {
 }
 
 func (c Change) String() string {
+	var ret string
 	switch c.format {
 	case String:
-		return fmt.Sprintf("%s -- %s -> %s", c.file, c.line, c.NewLine)
+		ret = fmt.Sprintf("%s -- %s -> %s", c.file, c.line, c.NewLine)
 	case Terraform:
-		return fmt.Sprintf("%s:%s:%s -> %s", c.file, c.Module, c.version, c.newVersion)
+		ret = fmt.Sprintf("%s:%s:%s -> %s", c.file, c.Module, c.version, c.newVersion)
 	}
 
-	return "unsupportred format"
+	if c.Source != "" {
+		ret += " " + githubDiffURL(c.Source, c.version.String(), c.newVersion.String())
+	}
+
+	return ret
+}
+
+func githubDiffURL(repo, from, to string) string {
+	urls := []string{
+		fmt.Sprintf("%s/compare/%s...%s", repo, from, to),
+		fmt.Sprintf("%s/compare/v%s...v%s", repo, from, to),
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(urls))
+
+	var ret string
+
+	for _, url := range urls {
+		go func(url string) {
+			defer wg.Done()
+
+			resp, err := http.Get(url)
+			if err == nil && resp.StatusCode == 200 {
+				ret = url
+			}
+		}(url)
+	}
+
+	wg.Wait()
+	return ret
 }
 
 func New(src []string) Changes {
