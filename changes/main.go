@@ -44,6 +44,7 @@ type Change struct {
 	version    *semver.Version
 	newVersion *semver.Version
 	format     Format
+	Source     string
 }
 
 func (c Change) String() string {

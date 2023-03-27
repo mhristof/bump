@@ -38,7 +38,7 @@ func parseHCL(path string) Changes {
 	for _, module := range config.Modules {
 		log.WithField("module", module).Debug("Module")
 
-		versions := terraform.RegistryVersions(module.Source)
+		versions, source := terraform.RegistryVersions(module.Source)
 
 		sort.Sort(sort.Reverse(semver.Collection(versions)))
 
@@ -57,6 +57,7 @@ func parseHCL(path string) Changes {
 					format:     Terraform,
 					version:    moduleVersion,
 					newVersion: versions[i],
+					Source:     source,
 				})
 
 				break

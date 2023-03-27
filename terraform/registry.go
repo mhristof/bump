@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func RegistryVersions(module string) []*semver.Version {
-	url := "https://registry.terraform.io/v1/modules/" + module + "/versions"
+func RegistryVersions(module string) ([]*semver.Version, string) {
+	url := "https://registry.terraform.io/v1/modules/" + module
 	resp, err := http.Get(url)
 	if err != nil {
 		panic(err)
@@ -21,28 +21,31 @@ func RegistryVersions(module string) []*semver.Version {
 		panic(err)
 	}
 
-	var versions VersionsResponse
-	err = json.Unmarshal(body, &versions)
+	var mod TerraformRegistryModuleResponse
+	err = json.Unmarshal(body, &mod)
 	if err != nil {
 		panic(err)
 	}
 
+	log.WithFields(log.Fields{
+		"source": mod.Source,
+	}).Debug("found module")
+
 	var ret []*semver.Version
 
-	for _, v := range versions.Modules[0].Versions {
+	for _, version := range mod.Versions {
 
-		version, err := semver.NewVersion(v.Version)
+		semVersion, err := semver.NewVersion(version)
 		if err != nil {
 			panic(err)
 		}
 
 		log.WithFields(log.Fields{
-			"module":  module,
-			"version": v.Version,
-			"semver":  version,
+			"version": version,
+			"semver":  semVersion,
 		}).Trace("Version")
 
-		ret = append(ret, version)
+		ret = append(ret, semVersion)
 	}
 
 	log.WithFields(log.Fields{
@@ -50,33 +53,105 @@ func RegistryVersions(module string) []*semver.Version {
 		"len":    len(ret),
 	}).Debug("Versions")
 
-	return ret
+	return ret, mod.Source
 }
 
-type VersionsResponse struct {
-	Modules []struct {
-		Source   string `json:"source"`
-		Versions []struct {
-			Root struct {
-				Dependencies []interface{} `json:"dependencies"`
-				Providers    []struct {
-					Name      string `json:"name"`
-					Namespace string `json:"namespace"`
-					Source    string `json:"source"`
-					Version   string `json:"version"`
-				} `json:"providers"`
-			} `json:"root"`
-			Submodules []struct {
-				Dependencies []interface{} `json:"dependencies"`
-				Path         string        `json:"path"`
-				Providers    []struct {
-					Name      string `json:"name"`
-					Namespace string `json:"namespace"`
-					Source    string `json:"source"`
-					Version   string `json:"version"`
-				} `json:"providers"`
-			} `json:"submodules"`
+type TerraformRegistryModuleResponse struct {
+	Description string `json:"description"`
+	Downloads   int64  `json:"downloads"`
+	Examples    []struct {
+		Dependencies []struct {
+			Name    string `json:"name"`
+			Source  string `json:"source"`
 			Version string `json:"version"`
-		} `json:"versions"`
-	} `json:"modules"`
+		} `json:"dependencies"`
+		Empty  bool `json:"empty"`
+		Inputs []struct {
+			Default     string `json:"default"`
+			Description string `json:"description"`
+			Name        string `json:"name"`
+			Required    bool   `json:"required"`
+			Type        string `json:"type"`
+		} `json:"inputs"`
+		Name                 string        `json:"name"`
+		Outputs              []interface{} `json:"outputs"`
+		Path                 string        `json:"path"`
+		ProviderDependencies []struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+			Source    string `json:"source"`
+			Version   string `json:"version"`
+		} `json:"provider_dependencies"`
+		Readme    string        `json:"readme"`
+		Resources []interface{} `json:"resources"`
+	} `json:"examples"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Namespace       string   `json:"namespace"`
+	Owner           string   `json:"owner"`
+	Provider        string   `json:"provider"`
+	ProviderLogoURL string   `json:"provider_logo_url"`
+	Providers       []string `json:"providers"`
+	PublishedAt     string   `json:"published_at"`
+	Root            struct {
+		Dependencies []interface{} `json:"dependencies"`
+		Empty        bool          `json:"empty"`
+		Inputs       []struct {
+			Default     string `json:"default"`
+			Description string `json:"description"`
+			Name        string `json:"name"`
+			Required    bool   `json:"required"`
+			Type        string `json:"type"`
+		} `json:"inputs"`
+		Name    string `json:"name"`
+		Outputs []struct {
+			Description string `json:"description"`
+			Name        string `json:"name"`
+		} `json:"outputs"`
+		Path                 string `json:"path"`
+		ProviderDependencies []struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+			Source    string `json:"source"`
+			Version   string `json:"version"`
+		} `json:"provider_dependencies"`
+		Readme    string `json:"readme"`
+		Resources []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"resources"`
+	} `json:"root"`
+	Source     string `json:"source"`
+	Submodules []struct {
+		Dependencies []interface{} `json:"dependencies"`
+		Empty        bool          `json:"empty"`
+		Inputs       []struct {
+			Default     string `json:"default"`
+			Description string `json:"description"`
+			Name        string `json:"name"`
+			Required    bool   `json:"required"`
+			Type        string `json:"type"`
+		} `json:"inputs"`
+		Name    string `json:"name"`
+		Outputs []struct {
+			Description string `json:"description"`
+			Name        string `json:"name"`
+		} `json:"outputs"`
+		Path                 string `json:"path"`
+		ProviderDependencies []struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+			Source    string `json:"source"`
+			Version   string `json:"version"`
+		} `json:"provider_dependencies"`
+		Readme    string `json:"readme"`
+		Resources []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"resources"`
+	} `json:"submodules"`
+	Tag      string   `json:"tag"`
+	Verified bool     `json:"verified"`
+	Version  string   `json:"version"`
+	Versions []string `json:"versions"`
 }
