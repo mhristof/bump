@@ -214,12 +214,14 @@ func githubUpdate(line string, version *semver.Version) (string, *semver.Version
 	repo := matches[2]
 
 	// get the repo
-	releases, _, _ := client.Repositories.ListReleases(context.TODO(), owner, repo, nil)
+	releases, foo, bar := client.Repositories.ListReleases(context.TODO(), owner, repo, nil)
 
 	log.WithFields(log.Fields{
 		"len":   len(releases),
 		"repo":  repo,
 		"owner": owner,
+		"foo":   foo,
+		"bar":   bar,
 	}).Debug("Found releases")
 	semverReleases := make([]*semver.Version, len(releases))
 

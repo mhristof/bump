@@ -21,7 +21,7 @@ func updateECR(data *awsdata.AWS, line string, version *semver.Version) (string,
 		"versions": versions,
 	}).Debug("Versions")
 
-	for i := len(versions) - 1; i >= 0; i-- {
+	for i := 0; i < len(versions); i++ {
 		if versions[i].GreaterThan(version) {
 			return strings.ReplaceAll(line, version.String(), versions[i].String()), versions[i]
 		}

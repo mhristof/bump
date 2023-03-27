@@ -43,12 +43,12 @@ func parseHCL(path string) Changes {
 		sort.Sort(sort.Reverse(semver.Collection(versions)))
 
 		moduleVersion := semver.MustParse(module.Version)
-		for i := len(versions) - 1; i >= 0; i-- {
+		for i := 0; i < len(versions); i++ {
 			if versions[i].GreaterThan(moduleVersion) {
 				log.WithFields(log.Fields{
 					"module":  module.Name,
 					"version": versions[i],
-				}).Debug("adding change")
+				}).Debug("found latest change")
 
 				ret = append(ret, &Change{
 					line:       string(data),
@@ -58,6 +58,8 @@ func parseHCL(path string) Changes {
 					version:    moduleVersion,
 					newVersion: versions[i],
 				})
+
+				break
 			}
 		}
 	}

@@ -142,7 +142,7 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 	}
 
 	a.repos[repositoryName] = uniqueVersionsSlice
-	sort.Sort(semver.Collection(a.repos[repositoryName]))
+	sort.Sort(sort.Reverse(semver.Collection(a.repos[repositoryName])))
 
 	log.WithFields(log.Fields{
 		"repository": repositoryName,
