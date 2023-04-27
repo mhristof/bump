@@ -2,6 +2,7 @@ package awsdata
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -42,7 +43,7 @@ func awsProfiles() []string {
 		key := accountID + "/" + region
 
 		existingRole, ok := accountRoles[key]
-		if ok && strings.Contains(existingRole, "ReadOnly") {
+		if ok && strings.Contains(existingRole, "-ReadOnlyAccess-") {
 			log.WithFields(log.Fields{
 				"key":       key,
 				"accountID": accountID,
@@ -114,12 +115,15 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 
 		go func(client *ecr.Client) {
 			defer wg.Done()
-			regionRepos := ecrRepo(client, repositoryName)
 
-			a.reposMux.Lock()
-			defer a.reposMux.Unlock()
+			regionRepos, err := ecrRepo(client, repositoryName)
+			if err == nil {
+				a.reposMux.Lock()
+				defer a.reposMux.Unlock()
 
-			a.repos[repositoryName] = append(a.repos[repositoryName], regionRepos...)
+				a.repos[repositoryName] = append(a.repos[repositoryName], regionRepos...)
+			}
+
 			<-guard
 		}(client)
 	}
@@ -152,24 +156,27 @@ func (a *AWS) Tags(repositoryName string) []*semver.Version {
 	return a.repos[repositoryName]
 }
 
-func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
+func ecrRepo(client *ecr.Client, repositoryName string) ([]*semver.Version, error) {
 	paginator := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
 
 	repos := []ecrTypes.Repository{}
 	for page := 0; paginator.HasMorePages(); page++ {
-		page, err := paginator.NextPage(context.Background())
+		data, err := paginator.NextPage(context.Background())
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
 				"page":  page,
-			}).Error("Failed to describe repositories")
+			}).Debug("Failed to describe repositories")
+
+			return []*semver.Version{}, fmt.Errorf("failed to describe repositories: %w", err)
 		}
 
 		log.WithFields(log.Fields{
-			"page": page,
+			"page":  page,
+			"repos": data.Repositories,
 		}).Trace("retrieved repos page")
 
-		repos = append(repos, page.Repositories...)
+		repos = append(repos, data.Repositories...)
 	}
 
 	for _, repo := range repos {
@@ -223,8 +230,8 @@ func ecrRepo(client *ecr.Client, repositoryName string) []*semver.Version {
 			}
 		}
 
-		return semverImages
+		return semverImages, nil
 	}
 
-	return []*semver.Version{}
+	return []*semver.Version{}, nil
 }

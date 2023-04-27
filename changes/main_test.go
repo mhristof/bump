@@ -25,6 +25,7 @@ func TestGithubUpdate(t *testing.T) {
 		},
 	}
 
+	// log.SetLevel(log.DebugLevel)
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			line, newVersion := githubUpdate(test.line, extractVersion(test.line))
