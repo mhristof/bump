@@ -196,6 +196,26 @@ func (c *Changes) Update(threads int) {
 			change.newVersion = newVersion
 			changed = append(changed, change)
 
+		case strings.Contains(change.line, "-ami-"):
+			name := strings.Split(change.line, `"`)[1]
+			log.WithFields(log.Fields{
+				"line": change.line,
+				"name": name,
+			}).Debug("searching for AMI")
+
+			newAMI := aws.ValidAMI(name)
+			if newAMI == "" {
+				log.WithFields(log.Fields{
+					"line": change.line,
+					"name": name,
+				}).Trace("no AMI found")
+
+				continue
+			}
+
+			change.NewLine = strings.ReplaceAll(change.line, name, newAMI)
+			changed = append(changed, change)
+
 		case strings.Contains(change.line, "https://gitlab.com"):
 			log.WithField("change", change).Debug("Updating gitlab link")
 
@@ -220,6 +240,7 @@ func (c *Changes) Update(threads int) {
 			log.WithField("changes", tfChanges).Debug("Found HCL changes")
 			parsed[change.file] = struct{}{}
 			changed = append(changed, tfChanges...)
+
 		}
 	}
 

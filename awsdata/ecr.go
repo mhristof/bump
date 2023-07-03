@@ -9,6 +9,8 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	ecrTypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/mitchellh/go-homedir"
@@ -73,6 +75,8 @@ func New(threads int) *AWS {
 	ret := AWS{
 		repos:    map[string][]*semver.Version{},
 		services: map[string]*ecr.Client{},
+		ec2:      map[string]*ec2.Client{},
+		amis:     map[string][]ec2Types.Image{},
 		threads:  threads,
 	}
 
@@ -89,6 +93,7 @@ func New(threads int) *AWS {
 		}
 
 		ret.services[profile] = ecr.NewFromConfig(cfg)
+		ret.ec2[profile] = ec2.NewFromConfig(cfg)
 	}
 
 	return &ret
@@ -99,6 +104,9 @@ type AWS struct {
 	repos    map[string][]*semver.Version
 	reposMux sync.Mutex
 	threads  int
+
+	ec2  map[string]*ec2.Client
+	amis map[string][]ec2Types.Image
 }
 
 func (a *AWS) Tags(repositoryName string) []*semver.Version {
