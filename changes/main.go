@@ -196,6 +196,43 @@ func (c *Changes) Update(threads int) {
 			change.newVersion = newVersion
 			changed = append(changed, change)
 
+		case strings.Contains(change.line, "ghcr.io"):
+
+			re := regexp.MustCompile(`ghcr.io/([^/]+)/([^/]+):(.+)`)
+			matches := re.FindStringSubmatch(change.line)
+
+			if len(matches) != 4 {
+				log.WithFields(log.Fields{
+					"change": change,
+					"line":   change.line,
+				}).Debug("Failed to parse ghcr.io line")
+
+				continue
+			}
+
+			org := matches[1]
+			repo := matches[2]
+			tag := strings.Trim(matches[3], `"`)
+
+			log.WithFields(log.Fields{
+				"change":  change,
+				"line":    change.line,
+				"matches": matches,
+				"org":     org,
+				"repo":    repo,
+				"tag":     tag,
+			}).Debug("Updating ghcr.io link")
+
+			_, newVersion := githubUpdate(fmt.Sprintf("https://github.com/%s/%s", org, repo), semver.MustParse(tag))
+
+			change.NewLine = strings.ReplaceAll(change.line, tag, newVersion.String())
+
+			log.WithFields(log.Fields{
+				"change": change,
+			}).Debug("Updated ghcr.io link")
+
+			changed = append(changed, change)
+
 		case strings.Contains(change.line, "-ami-"):
 			name := strings.Split(change.line, `"`)[1]
 			log.WithFields(log.Fields{
