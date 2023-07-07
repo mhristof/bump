@@ -223,7 +223,22 @@ func (c *Changes) Update(threads int) {
 				"tag":     tag,
 			}).Debug("Updating ghcr.io link")
 
-			_, newVersion := githubUpdate(fmt.Sprintf("https://github.com/%s/%s", org, repo), semver.MustParse(tag))
+			newVersion := githubPackageUpdate(org, repo, semver.MustParse(tag))
+
+			if newVersion == nil {
+				log.WithFields(log.Fields{
+					"change.line": change.line,
+					"tag":         tag,
+				}).Debug("Failed to update ghcr.io link")
+
+				continue
+			}
+
+			log.WithFields(log.Fields{
+				"change.line": change.line,
+				"tag":         tag,
+				"newVersion":  newVersion,
+			}).Debug("Updated ghcr.io link")
 
 			change.NewLine = strings.ReplaceAll(change.line, tag, newVersion.String())
 
@@ -324,7 +339,16 @@ func githubUpdate(line string, version *semver.Version) (string, *semver.Version
 
 	sort.Sort(semver.Collection(semverReleases))
 
+	log.WithFields(log.Fields{
+		"len": len(semverReleases),
+	}).Debug("Sorted releases")
+
 	for i := len(semverReleases) - 1; i >= 0; i-- {
+		log.WithFields(log.Fields{
+			"version": semverReleases[i].String(),
+			"i":       semverReleases[i].String(),
+		}).Debug("Checking version")
+
 		if semverReleases[i].Compare(version) > 0 {
 			log.WithField("version", semverReleases[i].String()).Debug("Found version")
 			return strings.ReplaceAll(line, version.String(), semverReleases[i].String()), semverReleases[i]
@@ -332,6 +356,72 @@ func githubUpdate(line string, version *semver.Version) (string, *semver.Version
 	}
 
 	return line, nil
+}
+
+func githubPackageUpdate(org, packageName string, version *semver.Version) *semver.Version {
+	ctx := context.Background()
+
+	token := os.Getenv("GITHUB_READONLY_TOKEN")
+
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+
+	client := github.NewClient(tc)
+
+	for page := 1; ; page++ {
+		versions, resp, err := client.Organizations.PackageGetAllVersions(context.Background(), org, "container", packageName, &github.PackageListOptions{
+			ListOptions: github.ListOptions{
+				Page:    page,
+				PerPage: 1000,
+			},
+		})
+
+		log.WithFields(log.Fields{
+			"len":           len(versions),
+			"org":           org,
+			"package":       packageName,
+			"resp":          resp,
+			"err":           err,
+			"resp.LastPage": resp.LastPage,
+		}).Debug("found package releases")
+
+		for _, packageVersion := range versions {
+			if len(packageVersion.Metadata.Container.Tags) == 0 {
+				continue
+			}
+
+			for _, tag := range packageVersion.Metadata.Container.Tags {
+				ver, err := semver.NewVersion(tag)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"tag":     tag,
+						"err":     err,
+						"org":     org,
+						"package": packageName,
+					}).Debug("failed to parse tag")
+					continue
+				}
+
+				if ver.Compare(version) > 0 {
+					log.WithFields(log.Fields{
+						"tag":     tag,
+						"ver":     ver,
+						"package": packageName,
+					}).Debug("found version")
+					return ver
+				}
+
+				if ver.Compare(version) <= 0 {
+					return nil
+				}
+
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c Change) Apply() {
