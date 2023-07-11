@@ -175,6 +175,8 @@ func (c *Changes) Update(threads int) {
 
 	aws := awsdata.New(threads)
 
+	reDockerhub := regexp.MustCompile(`\w*/\w*:[^\s]*`)
+
 	var changed Changes
 
 	for _, change := range *c {
@@ -281,6 +283,21 @@ func (c *Changes) Update(threads int) {
 			changed = append(changed, change)
 			log.WithField("change", change).Debug("Updated github link")
 
+		case reDockerhub.MatchString(change.line):
+			possibleImage := reDockerhub.FindString(change.line)
+
+			log.WithFields(log.Fields{
+				"change":        change,
+				"possibleImage": possibleImage,
+			}).Debug("Updating dockerhub link")
+
+			contents := dockerHub(possibleImage)
+			if contents == "" {
+				continue
+			}
+
+			change.NewLine = strings.ReplaceAll(change.line, possibleImage, contents)
+			changed = append(changed, change)
 		case strings.HasSuffix(change.file, ".tf"):
 			if _, ok := parsed[change.file]; ok {
 				log.WithField("file", change.file).Debug("already parsed with HCL")
@@ -292,7 +309,6 @@ func (c *Changes) Update(threads int) {
 			log.WithField("changes", tfChanges).Debug("Found HCL changes")
 			parsed[change.file] = struct{}{}
 			changed = append(changed, tfChanges...)
-
 		}
 	}
 
