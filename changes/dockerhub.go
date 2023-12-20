@@ -18,6 +18,7 @@ func dockerHub(image string) string {
 	tagVersion, err := semver.NewVersion(tag)
 	if err != nil {
 		log.WithFields(log.Fields{
+			"image": image,
 			"name":  name,
 			"tag":   tag,
 			"error": err,
@@ -82,7 +83,7 @@ func dockerHub(image string) string {
 		}
 	}
 
-	return "https://hub.docker.com/r/" + image
+	return image
 }
 
 type DockerHubTagsResponse struct {

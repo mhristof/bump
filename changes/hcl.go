@@ -3,7 +3,6 @@ package changes
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"sort"
 
@@ -57,7 +56,14 @@ func parseHCL(path string) Changes {
 
 		sort.Sort(sort.Reverse(semver.Collection(versions)))
 
-		moduleVersion := semver.MustParse(module.Version)
+		moduleVersion, err := semver.NewVersion(module.Version)
+		if err != nil {
+			//log.WithFields(log.Fields{
+			//"module": module.Name,
+			//}).Warning("failed to parse version")
+			continue
+		}
+
 		for i := 0; i < len(versions); i++ {
 			if versions[i].GreaterThan(moduleVersion) {
 				log.WithFields(log.Fields{
@@ -88,54 +94,13 @@ func parseHCL(path string) Changes {
 		log.Fatalf("Failed to convert: %s", err)
 	}
 
-	prettyConverted, _ := json.MarshalIndent(converted, "", "  ")
-	fmt.Println(string(prettyConverted))
+	// prettyConverted, _ := json.MarshalIndent(converted, "", "  ")
+	// fmt.Println(string(prettyConverted))
 
 	var indented bytes.Buffer
 	if err := json.Indent(&indented, converted, "", "    "); err != nil {
 		log.Fatalf("Failed to indent: %s", err)
 	}
 
-	fmt.Println(string(indented.Bytes()))
-
-	//_ = hclsimple.Decode("foo.hcl", data, nil, &versions)
-	//prettyVersions, _ := json.MarshalIndent(versions, "", "  ")
-	//fmt.Println(string(prettyVersions))
-
 	return ret
 }
-
-// file, diags := hclwrite.ParseConfig(data, "versions.tf", hcl.Pos{Line: 1, Column: 1})
-// if diags.HasErrors() {
-// 	fmt.Printf("errors: %s", diags)
-// }
-
-// file.WriteTo(os.Stdout)
-
-// prettyFile, _ := json.MarshalIndent(file, "", "  ")
-// fmt.Println("file:", string(prettyFile))
-
-// prettyBody, _ := json.MarshalIndent(file.Body(), "", "  ")
-// fmt.Println("body:", string(prettyBody))
-
-// prettyBodyBlocks, _ := json.MarshalIndent(file.Body().Blocks(), "", "  ")
-// fmt.Println("body blocks:", string(prettyBodyBlocks))
-
-// for _, block := range file.Body().Blocks() {
-// 	prettyBlock, _ := json.MarshalIndent(block, "", "  ")
-// 	fmt.Println("block:", string(prettyBlock))
-// 	fmt.Print("block type:", block.Type())
-// 	fmt.Print("block labels:", block.Labels())
-// }
-
-// prettyAttrs, _ := json.MarshalIndent(file.Body().Attributes(), "", "  ")
-// fmt.Println("attrs:", string(prettyAttrs))
-
-// for k, attr := range file.Body().Attributes() {
-// 	fmt.Println("foo", k)
-// 	prettyAttr, _ := json.MarshalIndent(attr, "", "  ")
-// 	fmt.Println("attr:", string(prettyAttr))
-// }
-
-// return ret
-// }
