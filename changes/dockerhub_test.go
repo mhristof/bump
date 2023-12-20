@@ -18,6 +18,11 @@ func TestDockerHub(t *testing.T) {
 			image: "prom/alertmanager:v0.25.0",
 			want:  "^prom/alertmanager:v.*$",
 		},
+		{
+			name:  "string with quotes",
+			image: `prom/alertmanager:v0.25.0"`,
+			want:  `prom/alertmanager:v.*"`,
+		},
 	}
 
 	for _, tt := range tests {

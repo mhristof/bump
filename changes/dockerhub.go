@@ -13,7 +13,7 @@ func dockerHub(image string) string {
 	fields := strings.Split(image, ":")
 
 	name := fields[0]
-	tag := fields[1]
+	tag := strings.Replace(fields[1], `"`, "", -1)
 
 	tagVersion, err := semver.NewVersion(tag)
 	if err != nil {
@@ -78,8 +78,18 @@ func dockerHub(image string) string {
 			continue
 		}
 
+		if strings.Contains(version.String(), "rc") {
+			log.WithFields(log.Fields{
+				"name":    name,
+				"version": version,
+				"tag":     tagVersion,
+			}).Debug("skip rc version")
+
+			continue
+		}
+
 		if version.Compare(tagVersion) > 0 {
-			return name + ":" + result.Name
+			return strings.Replace(image, tag, result.Name, -1)
 		}
 	}
 
